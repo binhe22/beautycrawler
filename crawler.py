@@ -1,13 +1,12 @@
 #!/usr/bin/env python2.7
 #!coding:utf8
-
+import gevent
 from gevent import monkey; monkey.patch_all();
 import requests
 import re
-from gevent.pool import Pool
 from BeautifulSoup import BeautifulSoup
 import redis
-
+import os
 
 
 headers = {
@@ -24,15 +23,15 @@ config = {"redisIp":"127.0.0.1",
         "redisPort":6379,
         "redisDb":0,
         "redisPassword":'',
+        "host":["22mm.cc","meimei22.com"]
         }
 
 proxies = {
-        "http":'http://58.134.102.231:8080'
+        "http":"http://183.207.228.2:81"
         }
 
 chunk_size = 256
-poolSize = 10
-pool = Pool(poolSize)
+poolSize = 1
 
 def getRedis():
     r=redis.StrictRedis(host=config["redisIp"], port=config["redisPort"],db=config["redisDb"] )
@@ -41,40 +40,67 @@ def getRedis():
         exit()
     return r
 
-
-def goNext():
-    r = getRedis()
-    url = r.srandmember("crawling")
-    if not url:
-        return 0
-    rq = requests.get(url, proxies=proxies, headers=headers, timeout=10)
-    host = rq.url
-    if rq.status_code != 200:
-        r.sadd("crawling", url)
-        pool.spawn(goNext)
-        return 0
-    htmlContent = rq.text.encode(rq.encoding).decode("utf8")
-    soup = BeautifulSoup(htmlContent)
-    for tag in soup.findAll('a', href=True):
-            url = tag['href']
+def getUrl(Tags, host, type):
+    urls = []
+    for tag in Tags:
+            url = tag[type]
             print url
+            flag = 0
+            for i in config["host"]:
+                if i in url:
+                    flag = 1
+                    break
+            if not flag and "http://" in url:
+                continue
+
             if url.startswith("http://"):
                 pass
             elif url.startswith("/"):
                 url = host + url[1:]
             else:
                 url = host+url
-            #ifMatchDeep =  re.match("\/[a-zA-Z]*\/[a-zA-Z]*\/[a-zA-Z\.]*", href)
-            if not r.sismember("crawled", url):
-                r.sadd("crawling",url)
-                pool.spawn(goNext)
-                print "gonext", url
-    for tag in soup.findAll('img', src=True):
-            url = tag["src"]
-            print url
-            if not r.sismember("saved", url):
-                r.sadd("saving", url)
-            pool.spawn(goSave)
+            urls.append(url)
+    print urls
+    return urls
+
+
+def goNext(argIn):
+    rq = requests.get(argIn, proxies=proxies, headers=headers, timeout=10)
+    host = re.findall("^(http:\/\/.*\.[a-z]*\/)", rq.url)
+    try:
+        host = host[0]
+    except IndexError:
+        print "get host error"
+        return 0
+    if rq.status_code != 200:
+        return 0
+    htmlContent = rq.text.encode(rq.encoding).decode("utf8")
+    soup = BeautifulSoup(htmlContent)
+    aTags = soup.findAll('a', href=True)
+    urls = getUrl(aTags, host, "href")
+    #ifMatchDeep =  re.match("\/[a-zA-Z]*\/[a-zA-Z]*\/[a-zA-Z\.]*", href)
+    r = getRedis()
+    for url in urls:
+        if not r.sismember("crawled", url):
+            r.sadd("crawling",url)
+            print "gonext", url
+    #saveUrls = getUrl(soup.findAll('img', src=True), host, "src")
+    r.srem("crawling", argIn)
+    r.sadd("crawled", argIn)
+
+    saveUrls = []
+    try:
+        saveUrl = re.findall('arrayImg\[[0-9]*\]="(.*\.jpg)";', rq.text)
+        print saveUrl
+        saveUrl = saveUrl[0]
+        saveUrl = saveUrl.replace("big","pic")
+    except IndexError:
+        return 1
+
+    saveUrls.append(saveUrl)
+    for url in saveUrls:
+        if not r.sismember("saved", url):
+            r.sadd("saving", url)
             print "gosaving", url
     return 1
 
@@ -83,31 +109,58 @@ def goSave():
     url = r.srandmember("saving")
     if not url:
         return 0
-    rq = requests.get(url, proxies=proxies, headers=headers, timeout=10, stream=True)
+    print "connect",url
+    rq = requests.get(url, headers=headers, proxies=proxies, timeout=10, stream=True)
     if rq.status_code != 200:
-        r.sadd("saving", url)
-        pool.spawn(goSave)
+        print "save connect error:", url
         return 0
     fileName = re.findall("\.com\/(.*\.jpg)$", url)[0]
-    with open(fileName, 'wb') as fd:
+    mkdir(fileName)
+    with open(fileName, 'wb+') as fd:
         for chunk in rq.iter_content(chunk_size):
             fd.write(chunk)
+    fd.close()
     r.sadd("saved", url)
+    r.srem("saving", url)
     return 1
 
+def mkdir(path):
+     tmp = path.split("/")
+     tmp = "/".join(tmp[:-1])
+     if not os.path.exists(tmp):
+         os.makedirs(tmp)
 
-def goForever():
-     pool.spawn(goNext)
-     pool.join()
+
+def saveForever():
+    while 1:
+        try:
+            goSave()
+        except Exception, e:
+            print "error",e
+            gevent.sleep(1)
+
+def crawlForever():
+    while 1:
+        try:
+            r=getRedis()
+            url = r.srandmember("crawling")
+            if not url:
+                gevent.sleep(1)
+                continue
+            goNext(url)
+        except Exception,e:
+            print "error",e
+            gevent.sleep(1)
+
+
 
 def main():
     r = getRedis()
-    r.sadd("crawling", "http://www.22mm.cc/mm/bagua/PiadPabmamaPaaeaJ.html")
-    #r.sadd("crawling", "http://www.22mm.cc/mm/qingliang/")
-    #r.sadd("crawling", "http://www.22mm.cc/mm/jingyan/")
-    #r.sadd("crawling", "http://www.22mm.cc/mm/bagua/")
-    #r.sadd("crawling", "http://www.22mm.cddc/mm/suren/")
-    goForever()
+    r.sadd("crawling", "http://www.22mm.cc/mm/qingliang/")
+    r.sadd("crawling", "http://www.22mm.cc/mm/jingyan/")
+    r.sadd("crawling", "http://www.22mm.cc/mm/bagua/")
+    r.sadd("crawling", "http://www.22mm.cddc/mm/suren/")
+    gevent.joinall([gevent.spawn(saveForever) for i in range(10)]+[gevent.spawn(crawlForever) for i in range(10)])
 
 if __name__ == '__main__':
     main()
