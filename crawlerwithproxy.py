@@ -70,8 +70,8 @@ def goNext(argIn):
         return 0
     if rq.status_code != 200:
         print "error",rq.status_code
-        #r.srem("crawling", argIn)
-        #r.sadd("badurl", argIn)
+        r.srem("crawling", argIn)
+        r.sadd("badurl", argIn)
         return 0
     #htmlContent = rq.text.encode(rq.encoding).decode("utf8")
     htmlContent = rq.text
@@ -108,12 +108,9 @@ def goNext(argIn):
             print "gosaving", url
     return 1
 
-def goSave():
+def goSave(argIn):
     r = getRedis()
-    url = r.srandmember("saving")
-    if not url:
-        return 0
-    print "connect",url
+    url = argIn
     rq = requests.get(url, headers=headers, proxies={"http":proxies[random.randint(0,18)]}, timeout=10, stream=True)
     if rq.status_code != 200:
         print "save connect error:", url
@@ -130,6 +127,7 @@ def goSave():
     r.srem("saving", url)
     return 1
 
+
 def mkdir(path):
      tmp = path.split("/")
      tmp = "/".join(tmp[:-1])
@@ -140,8 +138,13 @@ def mkdir(path):
 def saveForever():
     while 1:
         try:
-            print "save"
-            goSave()
+            r=getRedis()
+            url = r.srandmember("saving")
+            if not url:
+                gevent.sleep(1)
+                continue
+            print url
+            goSave(url)
         except Exception, e:
             print "error",e
             gevent.sleep(1)
@@ -159,6 +162,32 @@ def crawlForever():
         except Exception,e:
             print "error",e
             gevent.sleep(1)
+def errorHandleForever():
+    while 1:
+        try:
+            r = getRedis()
+            url = r.srandmember("error")
+            if not url:
+                gevent.sleep(1)
+            if(goSave(url)):
+                r.srem("error", url)
+        except Exception, e:
+            print "error:", e
+            gevent.sleep(1)
+
+def badUrlHandleForever():
+    while 1:
+        try:
+            r = getRedis()
+            url = r.srandmember("badurl")
+            if not url:
+                gevent.sleep(1)
+            if(goNext(url)):
+                r.srem("badurl", url)
+        except Exception, e:
+            print "error:", e
+            gevent.sleep(1)
+
 
 
 
@@ -168,7 +197,8 @@ def main():
     r.sadd("crawling", "http://www.22mm.cc/mm/jingyan/")
     r.sadd("crawling", "http://www.22mm.cc/mm/bagua/")
     r.sadd("crawling", "http://www.22mm.cc/mm/suren/")
-    gevent.joinall([gevent.spawn(saveForever) for i in range(50)]+[gevent.spawn(crawlForever) for i in range(50)])
+    gevent.joinall([gevent.spawn(saveForever) for i in range(50)]+[gevent.spawn(crawlForever) for i in range(50)]
+            +[gevent.spawn(badUrlHandleForever) for i in range(5)]+[gevent.spawn(errorHandleForever) for i in range(5)])
 
 if __name__ == '__main__':
     main()
