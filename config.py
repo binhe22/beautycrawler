@@ -1,7 +1,7 @@
 config = {"redisIp":"115.156.219.157",
             "redisPort":6379,
             "redisDb":1,
-            "redisPassword":'912619lemon',
+            "redisPassword":'',
             "host":["22mm.cc","meimei22.com"],
             "seed":["http://www.22mm.cc/mm/qingliang/", "http://www.22mm.cc/",
                 "http://www.22mm.cc/mm/jingyan/", "http://www.22mm.cc/mm/bagua/", "http://www.22mm.cc/mm/suren/"],
