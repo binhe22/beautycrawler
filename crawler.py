@@ -38,7 +38,7 @@ class crawl(object):
     programExit = 0
 
     def getRedis(self):
-        pool = redis.ConnectionPool(host=self.redisIp, port=self.redisPort, db=self.redisDb)
+        pool = redis.ConnectionPool(host=self.redisIp, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
         return redis.Redis(connection_pool=pool)
 
     def getUrl(self, Tags, host, hosturl, type):
@@ -63,6 +63,29 @@ class crawl(object):
         return urls
 
 
+    def findUrlNext(self, htmlContent, rq, host):
+        soup = BeautifulSoup(htmlContent)
+        aTags = soup.findAll('a', href=True)
+        hostUrl =  "/".join(rq.url.split("/")[0:-1])
+        urls = self.getUrl(aTags, host, hostUrl, "href")
+        return urls
+
+    def findUrlSave(self, htmlContent, rq, host):
+        saveUrls = []
+        try:
+            saveUrl = re.findall('arrayImg\[[0-9]*\]="(.*\.jpg)";', htmlContent)[0]
+            saveUrl = saveUrl.replace("big", "pic")
+            saveUrl = saveUrl.replace('"','')
+            saveUrl = saveUrl.split(";")
+            for i in saveUrl:
+                url=re.findall('http:\/\/.*\.jpg', i)[0]
+                url.replace("big","pic")
+                saveUrls.append(url)
+        except IndexError:
+            print "findUrlSave IndexError"
+            return
+        return saveUrls
+
     def goNext(self, argIn):
         if self.proxyOn:
             rq = requests.get(argIn, headers=self.headers, proxies={"http":self.proxies[random.randint(0,self.proxiesNum-1)]},timeout=self.timeout)
@@ -80,31 +103,14 @@ class crawl(object):
             r.srem(self.redisCrawlingKey, argIn)
             r.sadd(self.redisCrawlErrorKey, argIn)
             return 0
-        htmlContent = rq.text
-        soup = BeautifulSoup(htmlContent)
-        aTags = soup.findAll('a', href=True)
-        hostUrl =  "/".join(rq.url.split("/")[0:-1])
-        urls = self.getUrl(aTags, host, hostUrl, "href")
+        urls = self.findUrlNext(rq.text, rq, host)
         for url in urls:
             if not r.sismember(self.redisCrawledKey, url):
                 r.sadd(self.redisCrawlingKey,url)
                 print "gonext", url
         r.srem(self.redisCrawlingKey, argIn)
         r.sadd(self.redisCrawledKey, argIn)
-
-        saveUrls = []
-        try:
-            saveUrl = re.findall('arrayImg\[[0-9]*\]="(.*\.jpg)";', rq.text)[0]
-            saveUrl = saveUrl.replace("big", "pic")
-            saveUrl = saveUrl.replace('"','')
-            saveUrl = saveUrl.split(";")
-            for i in saveUrl:
-                url=re.findall('http:\/\/.*\.jpg', i)[0]
-                url.replace("big","pic")
-                saveUrls.append(url)
-        except IndexError:
-            return 1
-
+        saveUrls = self.findUrlSave(rq.text, rq, host)
         for url in saveUrls:
             if not r.sismember(self.redisSavedKey, url):
                 r.sadd(self.redisSavingKey, url)
@@ -143,14 +149,14 @@ class crawl(object):
 
     def saveForever(self):
         while 1:
-            if self.programExit:
-                return
             try:
                 r=self.getRedis()
+                if r.get("programExit"):
+                    return
                 url = r.srandmember(self.redisSavingKey)
                 if not url:
                     if not r.srandmember(self.redisCrawlingKey):
-                        self.programExit = 1
+                        r.set("programExit", 1)
                         return
                     gevent.sleep(1)
                     continue
@@ -161,14 +167,14 @@ class crawl(object):
 
     def crawlForever(self):
         while 1:
-            if self.programExit:
-                return
             try:
                 r=self.getRedis()
+                if r.get("programExit"):
+                    return
                 url = r.srandmember(self.redisCrawlingKey)
                 if not url:
                     if not r.srandmember(self.redisSavingKey):
-                        self.programExit = 1
+                        r.set("programExit", 1)
                         return
                     return
                 self.goNext(url)
@@ -177,10 +183,10 @@ class crawl(object):
                 gevent.sleep(1)
     def saveErrorHandleForever(self):
         while 1:
-            if self.programExit:
-                return
             try:
                 r = self.getRedis()
+                if r.get("programExit"):
+                    return
                 url = r.srandmember(self.redisSaveErrorKey)
                 if not url:
                     gevent.sleep(1)
@@ -193,10 +199,10 @@ class crawl(object):
 
     def crawlErrorHandleForever(self):
         while 1:
-            if self.programExit:
-                return
             try:
                 r = self.getRedis()
+                if r.get("programExit"):
+                    return
                 url = r.srandmember(self.redisCrawlErrorKey)
                 if not url:
                     gevent.sleep(1)
@@ -233,6 +239,7 @@ class crawl(object):
         self.printConfig()
         gevent.sleep(2)
         r = self.getRedis()
+        r.delete("programExit")
         for i in self.config["seed"]:
             r.sadd(self.redisCrawlingKey, i)
         gevent.joinall([gevent.spawn(self.saveForever) for i in range(self.saveNum)]+[gevent.spawn(self.crawlForever) for i in range(self.crawlNum)]
