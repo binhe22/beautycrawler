@@ -5,7 +5,7 @@ It is a distributed crawler with the help of flyer(in another repo).
 
 ###How Does It Works
 
-It will include the modules -- proxy modules(auto find web proxy), distributed task modules(flyer), crawler modules(you can define the crawling rules by rewrite some methods), and they can work respectively.
+It will include the modules -- proxy modules(auto find web proxy), distributed task modules(flyer), crawler modules(you can define the crawling rules by rewriting some methods), and those modules can work respectively.
 
 In one process, it use gevent to speedup.
 

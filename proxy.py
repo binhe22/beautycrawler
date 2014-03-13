@@ -16,7 +16,6 @@ def startRun():
     http = []
     url = 'http://proxy.ipcn.org/proxylist.html'
     r = requests.get(url, headers=headers)
-    print r.text
     httpTmp = re.findall('\d+\.\d+\.\d+\.\d:\d+', r.text)
     for i in httpTmp:
         http.append("http://"+str(i))

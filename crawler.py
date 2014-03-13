@@ -36,6 +36,8 @@ class crawl(object):
     redisPassword = config["redisPassword"]
     proxyOn = config["proxyOn"]
     programExit = 0
+    outDir = config["outDir"]
+    saveLimit = config["saveLimit"]
 
     def getRedis(self):
         pool = redis.ConnectionPool(host=self.redisIp, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
@@ -143,6 +145,9 @@ class crawl(object):
     def mkdir(self, path):
          tmp = path.split("/")
          tmp = "/".join(tmp[:-1])
+         tmp = self.outDir + tmp
+         tmp = tmp.rstrip()
+         print tmp
          if not os.path.exists(tmp):
              os.makedirs(tmp)
 
@@ -235,6 +240,17 @@ class crawl(object):
         for i in self.proxies:
             print i
         print "-----------------config end----------------------------"
+
+    def otherExit(self):
+        while 1:
+            r = self.getRedis()
+            savedImg = r.scard("saved")
+            print "savedImg", savedImg
+            if savedImg > self.saveLimit:
+                r.set("programExit", 1)
+                return
+            gevent.sleep(0)
+
     def run(self):
         self.printConfig()
         gevent.sleep(2)
@@ -243,7 +259,7 @@ class crawl(object):
         for i in self.config["seed"]:
             r.sadd(self.redisCrawlingKey, i)
         gevent.joinall([gevent.spawn(self.saveForever) for i in range(self.saveNum)]+[gevent.spawn(self.crawlForever) for i in range(self.crawlNum)]
-                +[gevent.spawn(self.crawlErrorHandleForever) for i in range(self.crawlErrorHandleNum)]+[gevent.spawn(self.saveErrorHandleForever) for i in range(self.saveErrorHandleNum)])
+                +[gevent.spawn(self.crawlErrorHandleForever) for i in range(self.crawlErrorHandleNum)]+[gevent.spawn(self.saveErrorHandleForever) for i in range(self.saveErrorHandleNum)]+[gevent.spawn(self.otherExit)])
 
 if __name__ == '__main__':
     crawl = crawl()
