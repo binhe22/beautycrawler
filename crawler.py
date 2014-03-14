@@ -40,10 +40,12 @@ class crawl(object):
     saveLimit = config["saveLimit"]
 
     def getRedis(self):
+        """return the redis"""
         pool = redis.ConnectionPool(host=self.redisIp,port=self.redisPort, password=self.redisPassword, db=self.redisDb)
         return redis.Redis(connection_pool=pool,  socket_timeout=5 )
 
     def getUrl(self, Tags, host, hosturl, type):
+        """get the url"""
         urls = []
         for tag in Tags:
                 url = tag[type]
@@ -66,6 +68,7 @@ class crawl(object):
 
 
     def findUrlNext(self, htmlContent, rq, host):
+        """define how to get the urls to crawl next; you can just make it default like this"""
         soup = BeautifulSoup(htmlContent)
         aTags = soup.findAll('a', href=True)
         hostUrl =  "/".join(rq.url.split("/")[0:-1])
@@ -73,6 +76,8 @@ class crawl(object):
         return urls
 
     def findUrlSave(self, htmlContent, rq, host):
+        """define how to get the urls of the resource to save(store); if you want to crawl other beauty websites
+        you can just change the methods"""
         saveUrls = []
         try:
             saveUrl = re.findall('arrayImg\[[0-9]*\]="(.*\.jpg)";', htmlContent)[0]
@@ -89,6 +94,7 @@ class crawl(object):
         return saveUrls
 
     def goNext(self, argIn):
+        """define how to push the url in crawling, in other words, define the kind of urls to crawl"""
         if self.proxyOn:
             rq = requests.get(argIn, headers=self.headers, proxies={"http":self.proxies[random.randint(0,self.proxiesNum-1)]},timeout=self.timeout)
         else:
@@ -120,6 +126,7 @@ class crawl(object):
         return 1
 
     def goSave(self, argIn):
+        """define how to save, if you want to crawl other websites, you can change the methods to define by yourself"""
         r = self.getRedis()
         url = argIn
         if self.proxyOn:
@@ -144,6 +151,7 @@ class crawl(object):
 
 
     def mkdir(self, path):
+        """mkdir with the filename"""
          print 'mkdir'
          tmp = path.split("/")
          tmp = "/".join(tmp[:-1])
@@ -155,6 +163,7 @@ class crawl(object):
          return tmp
 
     def saveForever(self):
+        """one greenlet to handle the save"""
         while 1:
             try:
                 r=self.getRedis()
@@ -173,6 +182,7 @@ class crawl(object):
                 gevent.sleep(1)
 
     def crawlForever(self):
+        """one greenlet to handle the crawl """
         while 1:
             try:
                 r=self.getRedis()
@@ -189,6 +199,7 @@ class crawl(object):
                 print "crawlForever error",e
                 gevent.sleep(1)
     def saveErrorHandleForever(self):
+        """one greenlet to handle the save error urls"""
         while 1:
             try:
                 r = self.getRedis()
@@ -205,6 +216,7 @@ class crawl(object):
                 gevent.sleep(1)
 
     def crawlErrorHandleForever(self):
+        """one greenlet to handle the crawl error urls"""
         while 1:
             try:
                 r = self.getRedis()
@@ -220,6 +232,7 @@ class crawl(object):
                 print "badUrlHandleForever error:", e
                 gevent.sleep(1)
     def printConfig(self):
+        """print the config"""
         print "-----------------config----------------------------"
         print "redisIp", self.redisIp
         print "redisPort", self.redisPort
@@ -244,6 +257,7 @@ class crawl(object):
         print "-----------------config end----------------------------"
 
     def otherExit(self):
+        """self define exie function"""
         if self.saveLimit == -1:
             return
         while 1:
@@ -256,6 +270,7 @@ class crawl(object):
             gevent.sleep(0)
 
     def run(self):
+        """start the crawler"""
         self.printConfig()
         gevent.sleep(2)
         r = self.getRedis()
