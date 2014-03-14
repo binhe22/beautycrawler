@@ -21,6 +21,8 @@ beautycrawler
 
 现在比较晕了，我也不知道该怎么说了，我先睡会再详细说^_^
 
+You can select db, and set programExit 1, to make the cluster stop, it the ctrl-c does not work
+
 72000-73000张照片，7G多，最快的时候12分钟可以爬完整个流程，包括网页解析等等。
 
 ####如果要跑需要改参数：
