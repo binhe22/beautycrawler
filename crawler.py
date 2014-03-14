@@ -40,8 +40,8 @@ class crawl(object):
     saveLimit = config["saveLimit"]
 
     def getRedis(self):
-        pool = redis.ConnectionPool(host=self.redisIp, port=self.redisPort, password=self.redisPassword, db=self.redisDb)
-        return redis.Redis(connection_pool=pool)
+        pool = redis.ConnectionPool(host=self.redisIp,port=self.redisPort, password=self.redisPassword, db=self.redisDb)
+        return redis.Redis(connection_pool=pool,  socket_timeout=5 )
 
     def getUrl(self, Tags, host, hosturl, type):
         urls = []
@@ -133,6 +133,7 @@ class crawl(object):
             return 0
         fileName = re.findall("\.com\/(.*\.jpg)$", url)[0]
         self.mkdir(fileName)
+        fileName = self.outDir + fileName
         with open(fileName, 'wb+') as fd:
             for chunk in rq.iter_content(self.chunk_size):
                 fd.write(chunk)
@@ -143,14 +144,15 @@ class crawl(object):
 
 
     def mkdir(self, path):
+         print 'mkdir'
          tmp = path.split("/")
          tmp = "/".join(tmp[:-1])
          tmp = self.outDir + tmp
          tmp = tmp.rstrip()
-         print tmp
+         print "mkdir", tmp
          if not os.path.exists(tmp):
              os.makedirs(tmp)
-
+         return tmp
 
     def saveForever(self):
         while 1:
@@ -242,6 +244,8 @@ class crawl(object):
         print "-----------------config end----------------------------"
 
     def otherExit(self):
+        if self.saveLimit == -1:
+            return
         while 1:
             r = self.getRedis()
             savedImg = r.scard("saved")

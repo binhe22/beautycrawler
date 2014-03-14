@@ -1,7 +1,7 @@
 config = {"redisIp":"115.156.219.157",
             "redisPort":6379,
-            "redisDb":1,
-            "redisPassword":'',
+            "redisDb":5,
+            "redisPassword":'912619lemon',
             "host":["22mm.cc","meimei22.com"],
             "seed":["http://www.22mm.cc/mm/qingliang/", "http://www.22mm.cc/",
                 "http://www.22mm.cc/mm/suren/"],
@@ -20,7 +20,7 @@ config = {"redisIp":"115.156.219.157",
         	 "redisSaveErrorKey":"saveerror",
         	 "timeout":10,
              "outDir":"/home/lemon/Beatuty/", # nedd /
-             "saveLimit":4000,  #how many resource to save
+             "saveLimit":-1,  #how many resource to save, -1 nolimited
             }
 headers = {
             'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
