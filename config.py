@@ -1,4 +1,4 @@
-config = {"redisIp":"115.156.219.157", #redis ip
+config = {"redisIp":"127.0.0.1", #redis ip
             "redisPort":6379, #redis port
             "redisDb":5, #redis db
             "redisPassword":'', #redis password
