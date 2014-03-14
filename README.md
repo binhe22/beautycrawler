@@ -25,8 +25,14 @@ beautycrawler
 
 ####如果要跑需要改参数：
 
+
 config.py 很多，可以根据意思修改
 redisconfig.py 用来做flyer的redis的配置
 host.list 需要运行的node，每行表示添加一个进程到node，所以可以添加n个进程到node
 file.list  运行文件可能会用到的文件，包括自身，同步到每个node
 --e 指明要运行的文件
+
+修改redis配置，调整fils.list 和 host.list
+```
+./beautycrawler.py --e crawler.py
+```
